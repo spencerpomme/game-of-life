@@ -1,0 +1,635 @@
+type: edu
+custom_name: stage5
+files:
+- name: src/life/Main.java
+  visible: true
+  text: |+
+    package life;
+
+    import java.util.ArrayList;
+    import java.util.List;
+    import java.util.Random;
+    import java.util.Scanner;
+    import javax.swing.*;
+
+    public class Main {
+
+    }
+
+    class Universe {
+        int N;  // side size
+        long S; // seed
+        int M;  // number of generations
+        Random random;
+        List<List<Boolean>> universe = new ArrayList<>();
+
+        public Universe(int N, long S, int M) {
+            this.N = N;
+            this.S = S;
+            this.M = M;
+            this.initUniverse(this.S);
+        }
+
+        public Universe(int N, int M) {
+            this.N = N;
+            this.M = M;
+            this.initUniverse();
+        }
+
+        private void initUniverse(long seed) {
+            this.random = new Random(S);
+            for (int i = 0; i < this.getN(); i++) {
+                List<Boolean> row = new ArrayList<>();
+                for (int j = 0; j < this.getN(); j++) {
+                    row.add(this.random.nextBoolean());
+                }
+                this.universe.add(row);
+            }
+        }
+
+        private void initUniverse() {
+            for (int i = 0; i < this.getN(); i++) {
+                List<Boolean> row = new ArrayList<>();
+                for (int j = 0; j < this.getN(); j++) {
+                    row.add(false);
+                }
+                this.universe.add(row);
+            }
+        }
+
+        public void showUniverse() {
+            for (var row : this.getUniverse()) {
+                for (var state : row) {
+                    System.out.print(state? 'O': ' ');
+                }
+                System.out.println();
+            }
+        }
+
+        public void generate() {
+            Algorithm evolve = new Evolve();
+            for (int i = 0; i < this.getM(); i++) {
+                System.out.println("Generation #" + (i+1));
+
+                this.universe = evolve.update(this).getUniverse();
+                System.out.println("Alive: " + this.countAlive());
+                this.showUniverse();
+            }
+        }
+
+        public boolean isAlive(int i, int j) {
+            return this.universe.get(i).get(j);
+        }
+
+        public int getN() {
+            return N;
+        }
+
+        public long getS() {
+            return S;
+        }
+
+        public int getM() {
+            return M;
+        }
+
+        public List<List<Boolean>> getUniverse() {
+            return universe;
+        }
+
+        public int countAlive() {
+            int count = 0;
+            for (int i = 0; i < this.getN(); i++) {
+                for (int j = 0; j < this.getN(); j++) {
+                    if (this.getUniverse().get(i).get(j)) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+    }
+
+    interface Algorithm {
+        Universe update(Universe before);
+    }
+
+
+    class Evolve implements Algorithm {
+
+        @Override
+        public Universe update(Universe before) {
+            Universe after = new Universe(before.getN(), before.getM());
+            int side = before.getN();
+            for (int i = 0; i < side; i++) {
+                for (int j = 0; j < side; j++) {
+                    int n = checkSurrounding(i, j, before.getUniverse());
+                    if (before.isAlive(i, j)) {
+                        if (n < 2 || n > 3) {
+                            // die boredom or overpopulation
+                            after.getUniverse().get(i).set(j, false);
+                        } else {
+                            after.getUniverse().get(i).set(j, true);
+                        }
+                    } else {
+                        if (n == 3) {
+                            // resurrect current cell
+                            after.getUniverse().get(i).set(j, true);
+                        } else {
+                            after.getUniverse().get(i).set(j, false);
+                        }
+                    }
+                }
+            }
+            return after;
+        }
+
+        // count surrounding cells
+        private int checkSurrounding(int i, int j, List<List<Boolean>> oldUniverse) {
+            int neighbors = 0;
+            int side = oldUniverse.size();
+            // eight neighbors:
+            // ui -> upper i | di -> down i | lj -> left j | rj -> right j
+            int ui = i-1 < 0? side+i-1: i-1;
+            int di = i+1 > side-1? i+1-side: i+1;
+            int lj = j-1 < 0? side+j-1: j-1;
+            int rj = j+1 > side-1? j+1-side: j+1;
+
+            neighbors += oldUniverse.get(ui).get(lj) ? 1: 0;
+            neighbors += oldUniverse.get(ui).get(j) ? 1: 0;
+            neighbors += oldUniverse.get(ui).get(rj) ? 1: 0;
+            neighbors += oldUniverse.get(i).get(lj) ? 1: 0;
+            neighbors += oldUniverse.get(i).get(rj) ? 1: 0;
+            neighbors += oldUniverse.get(di).get(lj) ? 1: 0;
+            neighbors += oldUniverse.get(di).get(j) ? 1: 0;
+            neighbors += oldUniverse.get(di).get(rj) ? 1: 0;
+            // System.out.println(neighbors);
+            return neighbors;
+        }
+    }
+
+  learner_created: false
+- name: src/life/GameOfLife.java
+  visible: true
+  text: |
+    package life;
+
+    import javax.swing.*;
+    import java.awt.*;
+    import java.util.ArrayList;
+    import java.util.List;
+    import java.util.Scanner;
+
+    public class GameOfLife extends JFrame {
+        private final JLabel generationLabel = new JLabel("0");
+        private final JLabel aliveLabel = new JLabel("0");
+        private final int width = 500;
+        private final int height = 530;
+        private final int captionHeight = 30;
+        private final int pad = 5;
+        private final ArrayList<JPanel> squares = new ArrayList<>();
+        private int size;
+
+        public void setGeneration(int value) {
+            generationLabel.setText(String.valueOf(value));
+        }
+
+        public void setAlive(int value) {
+            aliveLabel.setText(String.valueOf(value));
+        }
+
+        public void setSize(int s) {
+            size = s;
+        }
+
+        public static void main(String[] args) {
+            Scanner scanner = new Scanner(System.in);
+            int side = 20;
+            int seed = 19;
+            int gen = 400;
+
+            GameOfLife view = new GameOfLife();
+            view.setSize(side);
+
+            Universe world = new Universe(side, seed, gen);
+
+            Algorithm evolve = new Evolve();
+            for (int i = 0; i < world.getM(); i++) {
+                System.out.println("Generation #" + (i+1));
+                view.setGeneration(i+1);
+                view.setAlive(world.countAlive());
+
+                world.universe = evolve.update(world).getUniverse();
+                view.refresh(world.universe);
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    System.out.println(e.getMessage());
+                }
+            }
+        }
+
+        public GameOfLife() {
+            setTitle("Game of Life");
+            setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            setSize(width, height);
+            setLocationRelativeTo(null);
+            setLayout(null);
+            setVisible(true);
+            JPanel captionPanel = new JPanel();
+            captionPanel.setBounds(10,0,100, captionHeight);
+            captionPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            add(captionPanel);
+            generationLabel.setName("GenerationLabel");
+            aliveLabel.setName("AliveLabel");
+            captionPanel.add(new JLabel("Generation #"));
+            captionPanel.add(generationLabel);
+            captionPanel.add(new JLabel("Alive: "));
+            captionPanel.add(aliveLabel);
+            DrawGrid panel = new DrawGrid();
+            add(panel);
+
+        }
+
+        public class DrawGrid extends JPanel {
+            private final int w = width - 2 * pad;
+            int h = height - captionHeight - 2 * pad;
+            public DrawGrid() {
+                setBounds(pad, captionHeight + pad, w, h);
+            }
+            public void paintComponent(Graphics g) {
+                for (int i = 0; i <= size; i++) {
+                    int x = (w - 1) * i / size;
+                    g.drawLine(x, 0, x, h);
+                }
+                for (int i = 0; i <= size; i++) {
+                    int y = (h - 1) * i / size;
+                    g.drawLine(0, y, w, y);
+                }
+            }
+        }
+
+        public void refresh(List<List<Boolean>> f) {
+            for (JPanel jPanel: squares) {
+                remove(jPanel);
+            }
+            squares.clear();
+            for (int i = 0; i < f.size(); i++) {
+                for (int j = 0; j < f.get(i).size(); j++) {
+                    if (f.get(i).get(j)) {
+                        JPanel square = new Square(j, i);
+                        add(square);
+                        squares.add(square);
+                    }
+                }
+            }
+            repaint();
+        }
+
+        private class Square extends JPanel {
+            int h = height - captionHeight - 2 * pad;
+            int ws = (int) Math.ceil((double) width / size);
+            int hs = (int) Math.ceil((double) (height - captionHeight) / size);
+            public Square(int i, int j) {
+                int w = width - 2 * pad;
+                int x = (w - 1) * i / size;
+                int y = (h - 1) * j / size;
+                setBounds(pad + x, captionHeight + pad + y, ws, hs);
+            }
+            @Override
+            public void paintComponent(Graphics g){
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setColor(Color.BLACK);
+                g2.fillRect(0,0, ws, ws);
+            }
+        }
+    }
+  learner_created: false
+- name: test/GameOfLifeTest.java
+  visible: false
+  text: |2-
+
+    import common.GameOfLifeStage5Test;
+
+    public class GameOfLifeTest extends GameOfLifeStage5Test {
+
+    }
+  learner_created: false
+- name: test/common/CheckResultUtil.kt
+  visible: false
+  text: |
+    package common
+
+
+    import org.hyperskill.hstest.v6.testcase.CheckResult
+
+    operator fun CheckResult.component1(): Boolean = isCorrect
+    operator fun CheckResult.component2(): String? = feedback
+
+    fun Boolean.toCheckResult() = CheckResult(this, null)
+
+    fun fail(message: String) = CheckResult(false, message)  // TODO: add to repo
+  learner_created: false
+- name: test/common/ClueWithChecker.kt
+  visible: false
+  text: |
+    package common
+
+
+    import org.hyperskill.hstest.v6.testcase.CheckResult
+    import org.hyperskill.hstest.v6.testcase.TestCase
+
+    sealed class ClueWithChecker(val input: String) {
+        fun toTestCase(): TestCase<ClueWithChecker> {
+            return TestCase<ClueWithChecker>().setInput(input).setAttach(this)
+        }
+    }
+
+    class ClueWithPredefinedFeedbackChecker(
+            val predefinedFeedback: String,
+            input: String,
+            val checker: (String) -> Boolean
+    ) : ClueWithChecker(input)
+
+    class ClueWithDynamicFeedbackChecker(
+            input: String,
+            val checker: (String) -> CheckResult
+    ) : ClueWithChecker(input)
+
+    fun createPredefinedFeedbackTest(
+            feedback: String,
+            input: String = "",
+            checker: (String) -> Boolean
+    ): TestCase<ClueWithChecker> {
+        return ClueWithPredefinedFeedbackChecker(
+                predefinedFeedback = feedback,
+                input = input,
+                checker = checker
+        ).toTestCase()
+    }
+
+    fun createDynamicFeedbackTest(input: String = "", checker: (String) -> CheckResult): TestCase<ClueWithChecker> {
+        return ClueWithDynamicFeedbackChecker(
+                input = input,
+                checker = checker
+        ).toTestCase()
+    }
+
+    fun checkClueWithCheckerTest(reply: String, clue: ClueWithChecker): CheckResult {
+        return try {
+            when (clue) {
+                is ClueWithDynamicFeedbackChecker -> clue.checker(reply)
+                is ClueWithPredefinedFeedbackChecker -> CheckResult(clue.checker(reply), clue.predefinedFeedback)
+            }
+        } catch (e: AssertionError) {
+            if (clue is ClueWithPredefinedFeedbackChecker) {
+                fail(clue.predefinedFeedback)
+            } else {
+                CheckResult.FALSE
+            }
+        }
+    }
+  learner_created: false
+- name: test/common/GameOfLifeCommonTest.kt
+  visible: false
+  text: |
+    package common
+
+
+    import org.assertj.swing.fixture.JLabelFixture
+    import org.hyperskill.hstest.v6.testcase.CheckResult
+
+    fun checkLabelForInteger(labelRequirements: ComponentRequirements<JLabelFixture>): CheckResult {
+        val label = labelRequirements.requireExistingComponent()
+
+        val labelDigits = label.text().trim { !it.isDigit() }
+
+        if (labelDigits.toIntOrNull() == null) {
+            return fail("The '${labelRequirements.name}' label doesn't contain an integer.")
+        }
+
+        return CheckResult.TRUE
+    }
+  learner_created: false
+- name: test/common/GameOfLifeStage4Test.kt
+  visible: false
+  text: |
+    package common
+
+
+    import org.assertj.swing.fixture.JLabelFixture
+    import org.hyperskill.hstest.v6.stage.SwingTest
+    import org.hyperskill.hstest.v6.testcase.CheckResult
+    import org.hyperskill.hstest.v6.testcase.TestCase
+    import life.GameOfLife
+
+    abstract class GameOfLifeStage4Test : SwingTest<ClueWithChecker>(GameOfLife()) {
+
+        override fun generate(): List<TestCase<ClueWithChecker>> {
+            val generationLabel = ComponentRequirements("GenerationLabel", isEnabled = true) { window.label(it) }
+            val aliveLabel = ComponentRequirements("AliveLabel", isEnabled = true) { window.label(it) }
+
+            return frameTests(::frame) +
+                    existenceTests(generationLabel, aliveLabel) +
+                    componentsAreEnabledTests(generationLabel, aliveLabel) +
+                    stage4Tests(
+                            generationLabelRequirements = generationLabel,
+                            aliveLabelRequirements = aliveLabel
+                    )
+        }
+
+        override fun check(reply: String, clue: ClueWithChecker): CheckResult {
+            return checkClueWithCheckerTest(reply = reply, clue = clue)
+        }
+    }
+
+    fun stage4Tests(
+            generationLabelRequirements: ComponentRequirements<JLabelFixture>,
+            aliveLabelRequirements: ComponentRequirements<JLabelFixture>
+    ): List<TestCase<ClueWithChecker>> {
+        return listOf(
+                createDynamicFeedbackTest {
+                    with(checkLabelForInteger(generationLabelRequirements)) {
+                        if (!this.isCorrect) {
+                            return@createDynamicFeedbackTest this
+                        }
+                    }
+                    with(checkLabelForInteger(aliveLabelRequirements)) {
+                        if (!this.isCorrect) {
+                            return@createDynamicFeedbackTest this
+                        }
+                    }
+
+                    return@createDynamicFeedbackTest CheckResult.TRUE
+                }
+        )
+    }
+  learner_created: false
+- name: test/common/GameOfLifeStage5Test.kt
+  visible: false
+  text: |
+    package common
+
+
+    import org.assertj.swing.fixture.JButtonFixture
+    import org.assertj.swing.fixture.JLabelFixture
+    import org.assertj.swing.fixture.JToggleButtonFixture
+    import org.hyperskill.hstest.v6.common.Utils
+    import org.hyperskill.hstest.v6.stage.SwingTest
+    import org.hyperskill.hstest.v6.testcase.CheckResult
+    import org.hyperskill.hstest.v6.testcase.TestCase
+    import life.GameOfLife
+
+    abstract class GameOfLifeStage5Test : SwingTest<ClueWithChecker>(GameOfLife()) {
+
+        override fun generate(): List<TestCase<ClueWithChecker>> {
+            val generationLabel = ComponentRequirements("GenerationLabel", isEnabled = true) { window.label(it) }
+            val aliveLabel = ComponentRequirements("AliveLabel", isEnabled = true) { window.label(it) }
+
+            val playButton = ComponentRequirements("PlayToggleButton", isEnabled = true) { window.toggleButton(it) }
+            val resetButton = ComponentRequirements("ResetButton", isEnabled = true) { window.button(it) }
+
+            return frameTests(::frame) +
+                    existenceTests(generationLabel, aliveLabel, playButton, resetButton) +
+                    componentsAreEnabledTests(generationLabel, aliveLabel, playButton, resetButton) +
+                    stage5Tests(
+                            generationLabelRequirements = generationLabel,
+                            aliveLabelRequirements = aliveLabel,
+                            playButtonRequirements = playButton,
+                            resetButtonRequirements = resetButton
+                    )
+        }
+
+        override fun check(reply: String, clue: ClueWithChecker): CheckResult {
+            return checkClueWithCheckerTest(reply = reply, clue = clue)
+        }
+    }
+
+    fun stage5Tests(
+            generationLabelRequirements: ComponentRequirements<JLabelFixture>,
+            aliveLabelRequirements: ComponentRequirements<JLabelFixture>,
+            playButtonRequirements: ComponentRequirements<JToggleButtonFixture>,
+            resetButtonRequirements: ComponentRequirements<JButtonFixture>
+    ): List<TestCase<ClueWithChecker>> {
+        return listOf(
+                createPredefinedFeedbackTest("App crashes when reset is clicked") {
+                    val resetButton = resetButtonRequirements.requireExistingComponent()
+
+                    resetButton.click()
+
+                    return@createPredefinedFeedbackTest true
+                },
+
+                createDynamicFeedbackTest {
+                    /*
+                    Flip-flop play button, check labels, reset, flip-flop again, check again
+                    */
+
+                    val playButton = playButtonRequirements.requireExistingComponent()
+
+                    playButton.check()
+                    Utils.sleep(100)
+                    playButton.uncheck()
+
+                    with(checkLabelForInteger(generationLabelRequirements)) {
+                        if (!this.isCorrect) {
+                            return@createDynamicFeedbackTest this
+                        }
+                    }
+                    with(checkLabelForInteger(aliveLabelRequirements)) {
+                        if (!this.isCorrect) {
+                            return@createDynamicFeedbackTest this
+                        }
+                    }
+
+                    val resetButton = resetButtonRequirements.requireExistingComponent()
+                    resetButton.click()
+
+                    Utils.sleep(100)
+
+                    playButton.check()
+                    Utils.sleep(100)
+                    playButton.uncheck()
+
+                    with(checkLabelForInteger(generationLabelRequirements)) {
+                        if (!this.isCorrect) {
+                            return@createDynamicFeedbackTest this
+                        }
+                    }
+                    with(checkLabelForInteger(aliveLabelRequirements)) {
+                        if (!this.isCorrect) {
+                            return@createDynamicFeedbackTest this
+                        }
+                    }
+
+                    return@createDynamicFeedbackTest CheckResult.TRUE
+                }
+        )
+    }
+  learner_created: false
+- name: test/common/UiTestsGenerators.kt
+  visible: false
+  text: |
+    package common
+
+
+    import org.assertj.swing.fixture.AbstractJComponentFixture
+    import org.hyperskill.hstest.v6.stage.SwingTest
+    import org.hyperskill.hstest.v6.testcase.TestCase
+    import javax.swing.JFrame
+
+    fun frameTests(frameGetter: () -> JFrame): List<TestCase<ClueWithChecker>> {
+        return listOf(
+                createPredefinedFeedbackTest("Window is not visible") { frameGetter().isVisible }
+        )
+    }
+
+    class ComponentRequirements<ComponentType : AbstractJComponentFixture<*, *, *>>(
+            val name: String,
+            val isEnabled: Boolean,
+            private val componentFinder: (String) -> ComponentType?
+    ) {
+        val suitableComponent: ComponentType? by lazy { componentFinder(name) }
+    }
+
+    fun existenceTests(vararg components: ComponentRequirements<*>): List<TestCase<ClueWithChecker>> {
+        fun generateExistenceTest(requirements: ComponentRequirements<*>): TestCase<ClueWithChecker> {
+            return createPredefinedFeedbackTest("No suitable component with name '${requirements.name}' is found") {
+                SwingTest.checkExistence { requirements.suitableComponent }
+            }
+        }
+
+        return components.map(::generateExistenceTest)
+    }
+
+    fun componentsAreEnabledTests(vararg components: ComponentRequirements<*>): List<TestCase<ClueWithChecker>> {
+        fun generateIsEnabledTest(requirements: ComponentRequirements<*>): TestCase<ClueWithChecker> {
+            val (desiredState, stateChecker) = if (requirements.isEnabled) {
+                "enabled" to { requirements.requireExistingComponent().isEnabled }
+            } else {
+                "disabled" to { !requirements.requireExistingComponent().isEnabled }
+            }
+
+            return createPredefinedFeedbackTest("The '${requirements.name}' component should be $desiredState") {
+                stateChecker()
+            }
+
+        }
+
+        return components.map(::generateIsEnabledTest)
+    }
+
+    fun <ComponentType : AbstractJComponentFixture<*, *, *>>
+            ComponentRequirements<ComponentType>.requireExistingComponent(): ComponentType {
+        return requireNotNull(this.suitableComponent) {
+            "Must check for the '${this.name}' component existence before this test"
+        }
+    }
+  learner_created: false
+feedback_link: https://hyperskill.org/projects/54/stages/299/implement
+status: Solved
+feedback:
+  message: Congratulations! Continue on <a href="https://hyperskill.org/projects/54/stages/299/implement">JetBrains
+    Academy</a>
+  time: Tue, 25 Aug 2020 16:30:43 UTC
+record: -1
